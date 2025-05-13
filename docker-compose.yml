@@ -1,37 +1,60 @@
 version: '3.8'
 
 services:
-  nginx:
-    image: nginx:stable
-    ports:
-      - "8080:80"
-    volumes:
-      - ./app:/var/www/html
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - app
-
-  app:
+  php:
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./app:/var/www/html
+      - ./app:/app
+    environment:
+      - APP_ENV=${APP_ENV:-dev}
+      - APP_SECRET=your_app_secret
+    depends_on:
+      - database
+      - mailer
+    ports:
+      - "9000:9000"
 
-  mysql:
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./app/public:/app/public
+    ports:
+      - "8080:80"
+    depends_on:
+      - php
+
+  database:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: app
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=my_app
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
     volumes:
-      - mysql_data:/var/lib/mysql
+      - db_data:/var/lib/mysql
 
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin
+      image: phpmyadmin:latest
+      environment:
+        - PMA_HOST=database
+        - PMA_USER=root
+        - PMA_PASSWORD=root
+        - PMA_ARBITRARY=1
+      ports:
+        - "8081:80"
+      depends_on:
+        - database
+
+  mailer:
+    image: axllent/mailpit:latest
     ports:
-      - "8081:80"
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
     environment:
-      PMA_HOST: mysql
+      - MP_DATABASE=":memory:"  # Ensure proper string format
 
 volumes:
-  mysql_data:
+  db_data:
